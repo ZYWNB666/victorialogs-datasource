@@ -73,20 +73,9 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
     return asyncOption;
   }, [asyncOption, props.options]);
 
-  // Custom format create label to show input value inline
-  // Return plain text string for inline display
-  const formatCreateLabel = useCallback((inputValue: string): string => {
-    return `${inputValue} (Hit enter to add)`;
-  }, []);
-
   if (Combobox) {
-    // Combobox doesn't support formatCreateLabel, use it without custom label
     return (
-      <Combobox
-        {...props}
-        value={normalizedValue}
-        onChange={handleSelectChange as any}
-      />
+      <Combobox {...props} value={normalizedValue} onChange={handleSelectChange as any} />
     );
   }
 
@@ -103,7 +92,6 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
         isClearable={props.isClearable}
         isLoading={props.loading}
         disabled={props.disabled}
-        formatCreateLabel={formatCreateLabel}
       />
     );
   }
@@ -119,7 +107,6 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
       isClearable={props.isClearable}
       isLoading={props.loading}
       disabled={props.disabled}
-      formatCreateLabel={formatCreateLabel}
     />
   );
 };

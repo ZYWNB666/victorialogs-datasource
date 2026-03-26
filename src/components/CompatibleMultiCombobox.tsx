@@ -48,9 +48,19 @@ export const CompatibleMultiCombobox: typeof MultiCombobox = (props) => {
     return asyncOption;
   }, [asyncOption, props.options]);
 
+  // Format create label for custom values
+  const formatCreateLabel = useCallback((inputValue: string): string => {
+    return `${inputValue} (Hit enter to add)`;
+  }, []);
+
   if (MultiCombobox) {
+    // For MultiCombobox, use customValueDescription for inline hint
+    const comboboxProps = {
+      ...props,
+      customValueDescription: '(Hit enter to add)',
+    };
     return (
-      <MultiCombobox {...props} />
+      <MultiCombobox {...comboboxProps} />
     );
   }
 
@@ -67,6 +77,7 @@ export const CompatibleMultiCombobox: typeof MultiCombobox = (props) => {
         isClearable={props.isClearable}
         isLoading={props.loading}
         disabled={props.disabled}
+        formatCreateLabel={formatCreateLabel}
       />
     );
   }
@@ -82,6 +93,7 @@ export const CompatibleMultiCombobox: typeof MultiCombobox = (props) => {
       isClearable={props.isClearable}
       isLoading={props.loading}
       disabled={props.disabled}
+      formatCreateLabel={formatCreateLabel}
     />
   );
 };
