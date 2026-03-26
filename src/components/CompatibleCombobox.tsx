@@ -19,13 +19,40 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
   }, [props.value]);
 
 
-  const handleSelectChange = (selected: SelectValue<any> | null) => {
-    props.onChange({
-      value: selected.value,
-      label: selected.label ?? selected.value,
+  const normalizeSelected = useCallback((selected: SelectValue<any> | string | null): SelectValue<any> | null => {
+    if (!selected) {
+      return null;
+    }
+
+    if (typeof selected === 'string') {
+      return { value: selected, label: selected };
+    }
+
+    const normalizedSelectedValue = selected.value ?? selected.label;
+    if (normalizedSelectedValue === undefined) {
+      return null;
+    }
+
+    return {
+      value: normalizedSelectedValue,
+      label: selected.label ?? String(normalizedSelectedValue),
       description: selected.description,
+    };
+  }, []);
+
+  const handleSelectChange = useCallback((selected: SelectValue<any> | string | null) => {
+    const normalizedSelected = normalizeSelected(selected);
+    if (!normalizedSelected) {
+      props.onChange(null);
+      return;
+    }
+
+    props.onChange({
+      value: normalizedSelected.value,
+      label: normalizedSelected.label ?? normalizedSelected.value,
+      description: normalizedSelected.description,
     });
-  };
+  }, [normalizeSelected, props]);
 
   const asyncOption = useCallback((value: SelectValue<any>) => {
     if (typeof props.options === 'function') {
@@ -48,7 +75,7 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
 
   if (Combobox) {
     return (
-      <Combobox {...props} />
+      <Combobox {...props} value={normalizedValue} onChange={handleSelectChange as typeof props.onChange} />
     );
   }
 

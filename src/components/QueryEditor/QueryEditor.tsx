@@ -128,6 +128,7 @@ const QueryEditor = React.memo<VictoriaLogsQueryEditorProps>((props) => {
           </Stack>
         </EditorHeader>
         <div className='flex-grow-1'>
+          {/* Stream filters temporarily hidden
           {app === CoreApp.Explore && (
             <StreamFilters
               datasource={datasource}
@@ -136,7 +137,7 @@ const QueryEditor = React.memo<VictoriaLogsQueryEditorProps>((props) => {
               onChange={onChange}
               onRunQuery={onRunQuery}
             />
-          )}
+          )} */}
           {editorMode === QueryEditorMode.Builder ? (
             <QueryBuilderContainer
               datasource={props.datasource}

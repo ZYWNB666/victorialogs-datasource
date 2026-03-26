@@ -41,7 +41,8 @@ export function getDefaultEditorMode(expr: string) {
   }
 
   const value = store.get(queryEditorModeDefaultLocalStorageKey);
-  return value === QueryEditorMode.Builder ? QueryEditorMode.Builder : QueryEditorMode.Code;
+  // Default to Builder mode instead of Code
+  return value === QueryEditorMode.Code ? QueryEditorMode.Code : QueryEditorMode.Builder;
 }
 
 function getDefaultQueryTypeByPanel(panelPluginId?: string) {

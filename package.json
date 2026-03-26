@@ -88,6 +88,7 @@
     "@grafana/ui": "^12.4.1",
     "@lezer/common": "^1.5.1",
     "@lezer/lr": "^1.4.8",
+    "@swc/core-linux-x64-gnu": "^1.15.21",
     "lodash": "^4.17.23",
     "react": "19.2.4",
     "react-dom": "19.2.4",

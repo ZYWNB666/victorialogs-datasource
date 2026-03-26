@@ -1,4 +1,4 @@
-import { FilterVisualQuery, VisualQuery } from '../../../../types';
+import { FilterVisualQuery, LineFilterType, MsgFilterCondition, VisualQuery } from '../../../../types';
 
 import { BUILDER_OPERATORS, isEmptyQuery } from './parsing';
 
@@ -12,7 +12,8 @@ type ParsedExpression = string | ParsedExpression[];
 export const buildVisualQueryFromString = (expr: string): Context => {
   const visQuery: VisualQuery = {
     filters: { operators: [], values: [] },
-    pipes: []
+    pipes: [],
+    msgFilters: []
   };
 
   const context: Context = {
@@ -21,9 +22,10 @@ export const buildVisualQueryFromString = (expr: string): Context => {
   };
 
   try {
-    const { filters, pipes } = handleExpression(expr);
+    const { filters, pipes, msgFilters } = handleExpression(expr);
     visQuery.filters = filters;
     visQuery.pipes = pipes;
+    visQuery.msgFilters = msgFilters;
   } catch (err) {
     console.error(err);
     if (err instanceof Error) {
@@ -41,16 +43,17 @@ export const buildVisualQueryFromString = (expr: string): Context => {
 
 const handleExpression = (expr: string) => {
   const [filterStrPart, ...pipeParts] = expr.split('|').map(part => part.trim());
-  const filters = parseStringToFilterVisualQuery(filterStrPart);
-  return { filters, pipes: pipeParts };
+  const { filters, msgFilters } = parseStringToFilterVisualQuery(filterStrPart);
+  return { filters, pipes: pipeParts, msgFilters };
 };
 
 export const splitExpression = (expr: string): string[] => {
   return expr.split('|').map(part => part.trim());
 };
 
-const parseStringToFilterVisualQuery = (expression: string): FilterVisualQuery => {
+const parseStringToFilterVisualQuery = (expression: string): { filters: FilterVisualQuery; msgFilters: MsgFilterCondition[] } => {
   const parsedExpressions = parseExpression(expression);
+  const msgFilters: MsgFilterCondition[] = [];
 
   const groupFilterQuery = (parts: ParsedExpression[]): FilterVisualQuery => {
     const filter: FilterVisualQuery = {
@@ -66,7 +69,58 @@ const parseStringToFilterVisualQuery = (expression: string): FilterVisualQuery =
         if (BUILDER_OPERATORS.includes(part.toUpperCase())) {
           filter.operators.push(part);
         } else {
-          filter.values.push(...parseStringPart(part));
+          const parsedParts = parseStringPart(part);
+          // Extract _msg filters and treat them as msgFilters
+          for (const p of parsedParts) {
+            // Check if this is a _msg filter: _msg:value or _msg:~value or _msg:=value etc.
+            // Also support negation: _msg:!value, _msg:!~value (not contains)
+            // Operators: ! (not contains), !~ (not regex), ~ (regex), = or empty (contains)
+            const msgMatch = p.match(/^_msg\s*:\s*(!~|!|~|=)?\s*("[^"]*"|'[^']*'|\S+)?/i);
+            if (msgMatch) {
+              const operator = msgMatch[1] || '';
+              let value = msgMatch[2] || '';
+              // Remove quotes if present
+              if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+                value = value.slice(1, -1);
+              }
+              
+              // Determine the filter type based on operator and value
+              let type: LineFilterType;
+              const contains = operator !== '!~' && operator !== '!';
+              
+              // Check for case insensitive pattern: (?i) prefix
+              const isCaseInsensitive = value.startsWith('(?i)');
+              const cleanValue = isCaseInsensitive ? value.slice(4) : value;
+              
+              if (operator === '!~') {
+                // Not regex match
+                if (isCaseInsensitive) {
+                  type = LineFilterType.NotContainsCaseInsensitive;
+                } else {
+                  type = LineFilterType.RegexNotMatch;
+                }
+              } else if (operator === '!') {
+                // Not contains (exact)
+                type = LineFilterType.NotContains;
+              } else if (operator === '~') {
+                // Regex match
+                if (isCaseInsensitive) {
+                  type = LineFilterType.ContainsCaseInsensitive;
+                } else {
+                  type = LineFilterType.RegexMatch;
+                }
+              } else {
+                // Default contains (operator is '' or '=')
+                type = LineFilterType.Contains;
+              }
+              
+              if (cleanValue && cleanValue !== '*') {
+                msgFilters.push({ text: cleanValue, type, contains });
+              }
+            } else {
+              filter.values.push(p);
+            }
+          }
         }
       } else {
         filter.values.push(groupFilterQuery(part));
@@ -77,7 +131,7 @@ const parseStringToFilterVisualQuery = (expression: string): FilterVisualQuery =
     return filter;
   };
 
-  return groupFilterQuery(parsedExpressions);
+  return { filters: groupFilterQuery(parsedExpressions), msgFilters };
 };
 
 const splitByTopLevelParentheses = (input: string) => {

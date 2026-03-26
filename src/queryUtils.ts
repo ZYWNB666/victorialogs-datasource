@@ -33,6 +33,31 @@ export function getStringsFromLineFilter(filter: SyntaxNode): SyntaxNode[] {
 export function getHighlighterExpressionsFromQuery(input = ''): string[] {
   const results = [];
 
+  // Extract _msg filter values for highlighting
+  // Match patterns like _msg:"value" or _msg:value or _msg:!="value"
+  const msgFilterRegex = /_msg\s*:\s*(!~|!=|~|=)?\s*("[^"]*"|'[^']*'|\S+)/gi;
+  let match;
+  while ((match = msgFilterRegex.exec(input)) !== null) {
+    let value = match[2];
+    // Remove quotes if present
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (value && value !== '*') {
+      // For highlighting, we only highlight "contains" matches, not "not contains"
+      // But we still add them for highlighting purposes
+      // Escape special regex characters for highlighting (unless it's a regex match)
+      const operator = match[1] || '';
+      if (operator === '~' || operator === '!~') {
+        // Regex pattern - use as-is but unescape
+        results.push(value.replace(/\\\\/g, '\\'));
+      } else {
+        // Exact or word match - escape regex special chars
+        results.push(escapeRegExp(value));
+      }
+    }
+  }
+
   const filters = getNodesFromQuery(input, [LineFilter]);
 
   for (const filter of filters) {

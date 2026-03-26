@@ -114,9 +114,39 @@ export interface PipeVisualQuery {
   args: string[];
 }
 
+/** Type of line filter operation */
+export enum LineFilterType {
+  /** Line contains (case sensitive) - _msg:"text" */
+  Contains = 'contains',
+  /** Line does not contain (case sensitive) - _msg:!"text" */
+  NotContains = 'not_contains',
+  /** Line contains case insensitive - _msg:~"(?i)text" */
+  ContainsCaseInsensitive = 'contains_case_insensitive',
+  /** Line does not contain case insensitive - _msg:!~"(?i)text" */
+  NotContainsCaseInsensitive = 'not_contains_case_insensitive',
+  /** Line contains regex match - _msg:~"regex" */
+  RegexMatch = 'regex_match',
+  /** Line does not match regex - _msg:!~"regex" */
+  RegexNotMatch = 'regex_not_match',
+  /** IP line filter expression - _msg:ip("ip_range") */
+  IpFilter = 'ip_filter',
+}
+
+/** _msg filter condition for text search */
+export interface MsgFilterCondition {
+  /** the text to search for */
+  text: string;
+  /** type of line filter operation */
+  type: LineFilterType;
+  /** @deprecated use type instead. whether to include or exclude the text (true = contains, false = not contains) */
+  contains?: boolean;
+}
+
 export interface VisualQuery {
   filters: FilterVisualQuery;
   pipes: string[]; //PipeVisualQuery[];
+  /** _msg filter conditions for text search */
+  msgFilters: MsgFilterCondition[];
 }
 
 export interface RequestArguments {

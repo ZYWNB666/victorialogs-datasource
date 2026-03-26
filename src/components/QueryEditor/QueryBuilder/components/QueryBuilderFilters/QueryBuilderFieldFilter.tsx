@@ -1,8 +1,8 @@
 import { css } from '@emotion/css';
 import React, { useCallback, useMemo } from 'react';
 
-import { GrafanaTheme2, TimeRange } from '@grafana/data';
-import { IconButton, Label, useStyles2 } from '@grafana/ui';
+import { GrafanaTheme2, SelectableValue, TimeRange } from '@grafana/data';
+import { IconButton, Label, Select, useStyles2 } from '@grafana/ui';
 
 import { VictoriaLogsDatasource } from '../../../../../datasource';
 import { escapeLabelValueInExactSelector } from '../../../../../languageUtils';
@@ -15,6 +15,16 @@ import { DEFAULT_FIELD } from '../../utils/parseToString';
 
 import { useFetchFilters } from './useFetchFilters';
 
+type MatchOperator = '' | '~' | '=' | '!~' | '!=';
+
+const MATCH_OPERATOR_OPTIONS: Array<SelectableValue<MatchOperator>> = [
+  { label: ':', value: '', description: 'Word filter' },
+  { label: ':~', value: '~', description: 'Regexp match' },
+  { label: ':=', value: '=', description: 'Exact match' },
+  { label: ':!~', value: '!~', description: 'Not regexp match' },
+  { label: ':!=', value: '!=', description: 'Not exact match' },
+];
+
 interface Props {
   datasource: VictoriaLogsDatasource;
   filter: string;
@@ -24,17 +34,33 @@ interface Props {
   onChange: (query: VisualQuery) => void;
 }
 
+type SelectedOption = string | { value?: string; label?: string } | null;
+
+const getSelectedOptionValue = (option: SelectedOption): string | undefined => {
+  if (!option) {
+    return undefined;
+  }
+
+  if (typeof option === 'string') {
+    return option;
+  }
+
+  return option.value ?? option.label;
+};
+
 const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRange, onChange }: Props) => {
   const styles = useStyles2(getStyles);
 
-  const { field, fieldValue } = useMemo(() => {
-    const regex = /("[^"]*"|'[^']*'|\S+)\s*:\s*("[^"]*"|'[^']*'|\S+)?|\S+/i;
+  const { field, matchOp, fieldValue } = useMemo(() => {
+    // Matches: field:value  |  field:~value  |  field:=value  |  field:!~value  |  field:!=value  |  field:"quoted"
+    const regex = /("[^"]*"|'[^']*'|\S+)\s*:\s*(!~|!=|~|=)?\s*("[^"]*"|'[^']*'|\S+)?|\S+/i;
     const matches = filter.match(regex);
     if (!matches || matches.length < 1) {
-      return {};
+      return { matchOp: '' as MatchOperator };
     }
     const field = matches[1] || DEFAULT_FIELD;
-    let fieldValue = matches[2] ?? (matches[1] ? '' : matches[0]);
+    const matchOp = (matches[2] || '') as MatchOperator;
+    let fieldValue = matches[3] ?? (matches[1] ? '' : matches[0]);
 
     // Remove surrounding quotes from fieldValue
     if (
@@ -45,7 +71,7 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
       fieldValue = fieldValue.slice(1, -1);
     }
 
-    return { field, fieldValue };
+    return { field, matchOp, fieldValue };
   }, [filter]);
 
   const { loadFieldNames, loadFieldValues } = useFetchFilters({
@@ -64,34 +90,65 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
   }, [onChange, query, indexPath]);
 
   const handleSelectFieldName = useCallback(
-    (option: { value?: string; label?: string } | null) => {
-      if (!option || !option.value) {
+    (option: SelectedOption) => {
+      const selectedField = getSelectedOptionValue(option);
+      if (!selectedField) {
         return;
       }
-      // Clear field value when field name changes
-      const fullFilter = `${option.value}: `;
+      // Preserve current operator, clear field value when field name changes
+      const fullFilter = `${selectedField}:${matchOp} `;
 
       onChange({
         ...query,
         filters: updateValueByIndexPath(query.filters, indexPath, fullFilter),
       });
     },
-    [onChange, query, indexPath]
+    [onChange, query, indexPath, matchOp]
+  );
+
+  const handleSelectMatchOperator = useCallback(
+    ({ value }: SelectableValue<MatchOperator>) => {
+      const op = value ?? '';
+      // Preserve field name and field value when operator changes
+      let valueStr = '';
+      if (fieldValue) {
+        if (field === '_stream' || op === '~' || op === '!~') {
+          // Stream filters and regexp: use value as-is (no quotes)
+          valueStr = fieldValue;
+        } else {
+          valueStr = `"${escapeLabelValueInExactSelector(fieldValue)}"`;
+        }
+      }
+      const fullFilter = `${normalizeKey(field || '')}:${op}${valueStr} `;
+      onChange({
+        ...query,
+        filters: updateValueByIndexPath(query.filters, indexPath, fullFilter),
+      });
+    },
+    [onChange, query, indexPath, field, fieldValue]
   );
 
   const handleSelectFieldValue = useCallback(
-    (option: { value?: string; label?: string } | null) => {
-      if (!option || !option.value) {
+    (option: SelectedOption) => {
+      const selectedFieldValue = getSelectedOptionValue(option);
+      if (selectedFieldValue === undefined) {
         return;
       }
-      const fullFilter = `${normalizeKey(field || '')}: ${field === '_stream' ? option.value : `"${escapeLabelValueInExactSelector(option.value || '')}"`} `;
+      let valueStr: string;
+      if (field === '_stream' || matchOp === '~' || matchOp === '!~') {
+        // Stream filters and regexp: use value as-is (no quotes)
+        valueStr = selectedFieldValue;
+      } else {
+        valueStr = `"${escapeLabelValueInExactSelector(selectedFieldValue)}"`;
+      }
+      const fullFilter = `${normalizeKey(field || '')}:${matchOp}${valueStr} `;
 
       onChange({
         ...query,
         filters: updateValueByIndexPath(query.filters, indexPath, fullFilter),
       });
     },
-    [onChange, query, indexPath, field]
+    [onChange, query, indexPath, field, matchOp]
   );
 
   return (
@@ -110,9 +167,15 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
           minWidth={10}
           createCustomValue
         />
-        <span>:</span>
+        <Select
+          width='auto'
+          options={MATCH_OPERATOR_OPTIONS}
+          value={matchOp}
+          onChange={handleSelectMatchOperator}
+          menuShouldPortal
+        />
         <CompatibleCombobox
-          key={field}
+          key={`${field}-${matchOp}`}
           placeholder='Select field value'
           value={fieldValue ? { label: fieldValue, value: fieldValue } : null}
           options={loadFieldValues}

@@ -47,11 +47,14 @@ export const useFetchFilters = ({
       datasource.customQueryParameters
     );
 
-    const result: ComboboxOption[] = list ? list.map(({ value, hits }) => ({
-      value: value || '',
-      label: value || ' ',
-      description: `hits: ${hits}`,
-    })) : [];
+    const result: ComboboxOption[] = list ? list
+      // Filter out fields starting with _ (internal fields like _msg, _stream, _time, etc.)
+      .filter(item => !item.value?.startsWith('_'))
+      .map(({ value, hits }) => ({
+        value: value || '',
+        label: value || ' ',
+        description: `hits: ${hits}`,
+      })) : [];
 
     fieldNamesCache.current = result;
     return result;
@@ -102,6 +105,24 @@ export const useFetchFilters = ({
         label: value || ' ',
         description: `hits: ${hits}`,
       }));
+
+      // If user has typed something, add custom value option at the beginning
+      // so user can quickly select their input by pressing Enter
+      if (inputValue && inputValue.trim()) {
+        const customOption: ComboboxOption = {
+          value: inputValue.trim(),
+          label: inputValue.trim(),
+          description: 'Hit enter to add',
+        };
+        // Check if the custom value is not already in the list
+        const alreadyExists = mappedOptions.some(
+          opt => opt.value === inputValue.trim() || opt.label === inputValue.trim()
+        );
+        if (!alreadyExists) {
+          options.push(customOption);
+        }
+      }
+
       options.push(...mappedOptions);
 
       return options;
