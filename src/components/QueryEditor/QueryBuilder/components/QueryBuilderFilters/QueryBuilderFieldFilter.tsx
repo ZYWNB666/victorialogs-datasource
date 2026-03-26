@@ -1,3 +1,10 @@
+
+
+
+
+
+
+
 import { css } from '@emotion/css';
 import React, { useCallback, useMemo } from 'react';
 
@@ -15,14 +22,15 @@ import { DEFAULT_FIELD } from '../../utils/parseToString';
 
 import { useFetchFilters } from './useFetchFilters';
 
-type MatchOperator = '' | '~' | '=' | '!~' | '!=';
+type MatchOperator = '=' | '~' | '!~' | '!=';
+
+const DEFAULT_MATCH_OPERATOR: MatchOperator = '=';
 
 const MATCH_OPERATOR_OPTIONS: Array<SelectableValue<MatchOperator>> = [
-  { label: ':', value: '', description: 'Word filter' },
-  { label: ':~', value: '~', description: 'Regexp match' },
-  { label: ':=', value: '=', description: 'Exact match' },
-  { label: ':!~', value: '!~', description: 'Not regexp match' },
-  { label: ':!=', value: '!=', description: 'Not exact match' },
+  { label: '=', value: '=', description: 'Exact match' },
+  { label: '!=', value: '!=', description: 'Not exact match' },
+  { label: '=~', value: '~', description: 'Regexp match' },
+  { label: '!~', value: '!~', description: 'Not regexp match' },
 ];
 
 interface Props {
@@ -56,10 +64,10 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
     const regex = /("[^"]*"|'[^']*'|\S+)\s*:\s*(!~|!=|~|=)?\s*("[^"]*"|'[^']*'|\S+)?|\S+/i;
     const matches = filter.match(regex);
     if (!matches || matches.length < 1) {
-      return { matchOp: '' as MatchOperator };
+      return { matchOp: DEFAULT_MATCH_OPERATOR };
     }
     const field = matches[1] || DEFAULT_FIELD;
-    const matchOp = (matches[2] || '') as MatchOperator;
+    const matchOp = (matches[2] || DEFAULT_MATCH_OPERATOR) as MatchOperator;
     let fieldValue = matches[3] ?? (matches[1] ? '' : matches[0]);
 
     // Remove surrounding quotes from fieldValue
@@ -95,8 +103,9 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
       if (!selectedField) {
         return;
       }
-      // Preserve current operator, clear field value when field name changes
-      const fullFilter = `${selectedField}:${matchOp} `;
+      // Preserve current operator (or use default), clear field value when field name changes
+      const op = matchOp || DEFAULT_MATCH_OPERATOR;
+      const fullFilter = `${selectedField}:${op} `;
 
       onChange({
         ...query,
@@ -108,7 +117,7 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
 
   const handleSelectMatchOperator = useCallback(
     ({ value }: SelectableValue<MatchOperator>) => {
-      const op = value ?? '';
+      const op = value ?? DEFAULT_MATCH_OPERATOR;
       // Preserve field name and field value when operator changes
       let valueStr = '';
       if (fieldValue) {
@@ -134,14 +143,15 @@ const QueryBuilderFieldFilter = ({ datasource, filter, query, indexPath, timeRan
       if (selectedFieldValue === undefined) {
         return;
       }
+      const op = matchOp || DEFAULT_MATCH_OPERATOR;
       let valueStr: string;
-      if (field === '_stream' || matchOp === '~' || matchOp === '!~') {
+      if (field === '_stream' || op === '~' || op === '!~') {
         // Stream filters and regexp: use value as-is (no quotes)
         valueStr = selectedFieldValue;
       } else {
         valueStr = `"${escapeLabelValueInExactSelector(selectedFieldValue)}"`;
       }
-      const fullFilter = `${normalizeKey(field || '')}:${matchOp}${valueStr} `;
+      const fullFilter = `${normalizeKey(field || '')}:${op}${valueStr} `;
 
       onChange({
         ...query,

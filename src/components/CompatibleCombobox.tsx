@@ -43,7 +43,7 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
   const handleSelectChange = useCallback((selected: SelectValue<any> | string | null) => {
     const normalizedSelected = normalizeSelected(selected);
     if (!normalizedSelected) {
-      props.onChange(null);
+      props.onChange(null as any);
       return;
     }
 
@@ -51,7 +51,7 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
       value: normalizedSelected.value,
       label: normalizedSelected.label ?? normalizedSelected.value,
       description: normalizedSelected.description,
-    });
+    } as any);
   }, [normalizeSelected, props]);
 
   const asyncOption = useCallback((value: SelectValue<any>) => {
@@ -73,9 +73,20 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
     return asyncOption;
   }, [asyncOption, props.options]);
 
+  // Custom format create label to show input value inline
+  // Return plain text string for inline display
+  const formatCreateLabel = useCallback((inputValue: string): string => {
+    return `${inputValue} (Hit enter to add)`;
+  }, []);
+
   if (Combobox) {
+    // Combobox doesn't support formatCreateLabel, use it without custom label
     return (
-      <Combobox {...props} value={normalizedValue} onChange={handleSelectChange as typeof props.onChange} />
+      <Combobox
+        {...props}
+        value={normalizedValue}
+        onChange={handleSelectChange as any}
+      />
     );
   }
 
@@ -92,6 +103,7 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
         isClearable={props.isClearable}
         isLoading={props.loading}
         disabled={props.disabled}
+        formatCreateLabel={formatCreateLabel}
       />
     );
   }
@@ -101,12 +113,13 @@ export const CompatibleCombobox: typeof Combobox = (props) => {
       placeholder={props.placeholder}
       width={props.width}
       value={normalizedValue}
-      options={selectOptions}
+      options={selectOptions as any}
       allowCustomValue={props.createCustomValue}
       onChange={handleSelectChange}
       isClearable={props.isClearable}
       isLoading={props.loading}
       disabled={props.disabled}
+      formatCreateLabel={formatCreateLabel}
     />
   );
 };
